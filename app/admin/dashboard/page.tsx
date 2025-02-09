@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import ProtectedRoute from "@/app/components/protected";
 import { client } from "@/sanity/lib/client";
@@ -15,6 +15,7 @@ interface Product {
 }
 
 interface Order {
+  _id: string; // ✅ Ensure we use _id from Sanity
   city: string;
   phone: string;
   orderNumber: string;
@@ -39,16 +40,16 @@ export default function AdminDashboard() {
     client
       .fetch(
         `*[_type == "order"]{
-            orderNumber,
-            customerName,
-            email,
-            city,
-            phone,
-            orderDate,
-            products,
-            totalPrice,
-            status
-        }`
+          _id,  // ✅ Fetch _id to use it for delete/update
+          orderNumber,
+          customerName,
+          email,
+          city,
+          orderDate,
+          products,
+          totalPrice,
+          status
+      }`
       )
       .then((data) => setOrders(data))
       .catch(() => console.error("Error fetching orders"));
@@ -57,7 +58,9 @@ export default function AdminDashboard() {
   const filterOrders =
     filter === "All" ? orders : orders.filter((order) => order.status === filter);
 
-  const handleDelete = async (orderNumber: string) => {
+  // ✅ Updated delete function to use _id
+  const handleDelete = async (orderId: string) => {
+    console.log(`Attempting to delete order: ${orderId}`);
     const result = await Swal.fire({
       title: "Are you sure?",
       text: "You will not be able to recover this order!",
@@ -70,27 +73,31 @@ export default function AdminDashboard() {
     if (!result.isConfirmed) return;
 
     try {
-      await client.delete(orderNumber);
-      setOrders((prevOrders) => prevOrders.filter((order) => order.orderNumber !== orderNumber));
+      await client.delete(orderId); // ✅ Delete using _id
+      setOrders((prevOrders) => prevOrders.filter((order) => order._id !== orderId));
       Swal.fire("Deleted!", "Your order has been deleted.", "success");
-    } catch {
+    } catch (error) {
+      console.error("Error deleting order:", error);
       Swal.fire("Error!", "There was an error deleting this order.", "error");
     }
   };
 
+  // ✅ Updated status change function to use _id
   const handleStatusChange = async (
-    orderNumber: string,
+    orderId: string,
     newStatus: "pending" | "dispatched" | "success" | "completed"
   ) => {
+    console.log(`Attempting to change status of order: ${orderId} to ${newStatus}`);
     try {
-      await client.patch(orderNumber).set({ status: newStatus }).commit();
+      await client.patch(orderId).set({ status: newStatus }).commit(); // ✅ Patch using _id
       setOrders((prevOrders) =>
         prevOrders.map((order) =>
-          order.orderNumber === orderNumber ? { ...order, status: newStatus } : order
+          order._id === orderId ? { ...order, status: newStatus } : order
         )
       );
       Swal.fire("Success!", `Order status updated to ${newStatus}.`, "success");
-    } catch {
+    } catch (error) {
+      console.error("Error updating order status:", error);
       Swal.fire("Error!", "There was an error updating the order status.", "error");
     }
   };
@@ -124,24 +131,24 @@ export default function AdminDashboard() {
                   <th>ID</th>
                   <th>Customer</th>
                   <th>Email</th>
-                  <th>Phone</th>
+                
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filterOrders.map((order) => (
-                  <tr key={order.orderNumber} className="hover:bg-red-100 transition-all">
+                  <tr key={order._id} className="hover:bg-red-100 transition-all">
                     <td>{order.orderNumber}</td>
                     <td>{order.customerName}</td>
                     <td>{order.email}</td>
-                    <td>{order.phone}</td>
+                    
                     <td>
                       <select
                         value={order.status}
                         className="bg-gray-100 p-1 rounded-lg"
                         onChange={(e) =>
-                          handleStatusChange(order.orderNumber, e.target.value as "pending" | "dispatched" | "success" | "completed")
+                          handleStatusChange(order._id, e.target.value as "pending" | "dispatched" | "success" | "completed")
                         }
                       >
                         <option value="pending">Pending</option>
@@ -152,7 +159,7 @@ export default function AdminDashboard() {
                     </td>
                     <td>
                       <button
-                        onClick={() => handleDelete(order.orderNumber)}
+                        onClick={() => handleDelete(order._id)}
                         className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-800 transition"
                       >
                         Delete
